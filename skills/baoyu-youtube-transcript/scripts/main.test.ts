@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { findTranscript, parseTranscriptJson3, parseWebVtt } from "./transcript.ts";
+import { findTranscript, parseTranscriptJson3, parseTranscriptXml, parseWebVtt } from "./transcript.ts";
 import { buildTranscriptListFromYtDlp, fetchTranscriptWithFallback, resolveVideoSource, selectYtDlpTrack } from "./youtube.ts";
 
 test("selectYtDlpTrack prefers json3 over xml and vtt", () => {
@@ -57,6 +57,19 @@ test("parseTranscriptJson3 reads youtube timedtext json3 payloads", () => {
   assert.deepEqual(snippets, [
     { text: "hello world", start: 0.08, duration: 3.12 },
     { text: "again", start: 4, duration: 1.8 },
+  ]);
+});
+
+test("parseTranscriptXml reads current timedtext format 3 paragraphs", () => {
+  const snippets = parseTranscriptXml(`<?xml version="1.0" encoding="utf-8" ?>
+<timedtext format="3"><body>
+<p t="80" d="3120"><s ac="0">Hello</s><s t="400" ac="0"> world</s></p>
+<p t="4000" d="1800">Again &amp; again</p>
+</body></timedtext>`);
+
+  assert.deepEqual(snippets, [
+    { text: "Hello world", start: 0.08, duration: 3.12 },
+    { text: "Again & again", start: 4, duration: 1.8 },
   ]);
 });
 
