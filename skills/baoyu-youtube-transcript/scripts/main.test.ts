@@ -185,7 +185,12 @@ test("fetchTranscriptWithFallback retries with yt-dlp when InnerTube transcript 
         }],
       };
     },
-    (message) => warnings.push(message)
+    (message) => warnings.push(message),
+    async (_videoId, _source, transcript) => ({
+      snippets: [{ text: "Recovered subtitle", start: 0, duration: 2 }],
+      language: transcript.language,
+      languageCode: transcript.languageCode,
+    })
   );
 
   assert.equal(fallbackCalled, true);
@@ -193,4 +198,50 @@ test("fetchTranscriptWithFallback retries with yt-dlp when InnerTube transcript 
   assert.equal(result.snippets.length, 1);
   assert.equal(result.snippets[0].text, "Recovered subtitle");
   assert.match(warnings[0] || "", /Retrying with yt-dlp fallback/);
+});
+
+test("fetchTranscriptWithFallback lets yt-dlp download cookie-bound subtitle tracks", async () => {
+  let directFetches = 0;
+  let ytDlpFetches = 0;
+  const result = await fetchTranscriptWithFallback(
+    "video12345ab",
+    {
+      kind: "yt-dlp",
+      info: { title: "Fallback" },
+      transcripts: [{
+        language: "English (auto-generated)",
+        languageCode: "en",
+        isGenerated: true,
+        isTranslatable: false,
+        baseUrl: "https://www.youtube.com/api/timedtext?expire=signed",
+        translationLanguages: [],
+      }],
+    },
+    {
+      languages: ["en"],
+      translate: "",
+      excludeGenerated: false,
+      excludeManual: false,
+    },
+    async () => {
+      directFetches += 1;
+      throw new Error("HTTP 429 fetching transcript");
+    },
+    async () => {
+      throw new Error("fallback source should not be requested twice");
+    },
+    () => {},
+    async (_videoId, _source, transcript) => {
+      ytDlpFetches += 1;
+      return {
+        snippets: [{ text: "Cookie-authenticated subtitle", start: 0, duration: 2 }],
+        language: transcript.language,
+        languageCode: transcript.languageCode,
+      };
+    }
+  );
+
+  assert.equal(directFetches, 0);
+  assert.equal(ytDlpFetches, 1);
+  assert.equal(result.snippets[0].text, "Cookie-authenticated subtitle");
 });
